@@ -1,6 +1,6 @@
 'use strict'
 
-function protect (value, parent) {
+function protect (value) {
   function protectedTrap (method) {
     return (...args) => {
       let returnValue = method(...args)
@@ -17,17 +17,6 @@ function protect (value, parent) {
     return value
   }
 
-  // wrap functions with in-Realm function,
-  // with protected parent object as 'this'
-  if (typeof value === 'function') {
-    let original = value
-    value = (...args) => {
-      // protect the return value
-      let returnValue = original.apply(parent, args)
-      return protect(returnValue)
-    }
-  }
-
   // wrap with in-Realm Proxy,
   // which protects values returned by accesses,
   // and errors when trying to modify
@@ -39,8 +28,13 @@ function protect (value, parent) {
     getOwnPropertyDescriptor: protectedTrap(Reflect.getOwnPropertyDescriptor),
     has: protectedTrap(Reflect.has),
     ownKeys: protectedTrap(Reflect.ownKeys),
-    apply: protectedTrap(Reflect.apply),
     construct: protectedTrap(Reflect.construct),
+    apply (target, thisArg, args) {
+      // call with protected 'this'
+      thisArg = protect(thisArg)
+      let returnValue = Reflect.apply(target, thisArg, args)
+      return protect(returnValue)
+    },
 
     // modifications
     set: throwReadOnlyError,
